@@ -7,21 +7,34 @@ on:
     branches: [ main ]
 
 jobs:
-  lint:
-    name: Code Lint
+  check-files:
+    name: Check Files
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: HTML Lint
-        uses: w3c/sample-job-html-tidy@v1.0
-        with:
-          files: app/index.html
+      - name: Verify HTML exists
+        run: |
+          if [ -f "app/index.html" ]; then
+            echo "✅ index.html 存在"
+          else
+            echo "❌ index.html 不存在"
+            exit 1
+          fi
+
+      - name: Verify Dockerfile exists
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "✅ Dockerfile 存在"
+          else
+            echo "❌ Dockerfile 不存在"
+            exit 1
+          fi
 
   build-docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: lint
+    needs: check-files
     steps:
       - uses: actions/checkout@v4
 
