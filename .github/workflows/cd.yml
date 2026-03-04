@@ -1,0 +1,154 @@
+name: CD Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      deploy-type:
+        description: '部署类型'
+        required: true
+        default: 'gray'
+        type: choice
+        options:
+          - gray
+          - full
+          - ssh
+
+jobs:
+  build-and-push:
+    name: Build and Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=sha,prefix={{branch}}-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  ssh-deploy:
+    name: SSH Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event.inputs.deploy-type == 'ssh'
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH Deploy
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.SSH_HOST }}
+          REMOTE_USER: ${{ secrets.SSH_USER }}
+          REMOTE_PORT: ${{ secrets.SSH_PORT || '22' }}
+          SOURCE: "app/"
+          TARGET: ${{ secrets.DEPLOY_PATH || '/var/www/devops-actions' }}
+          SCRIPT_BEFORE: |
+            mkdir -p ${{ secrets.DEPLOY_PATH || '/var/www/devops-actions' }}
+          SCRIPT_AFTER: |
+            echo "✅ 部署完成"
+            ls -la ${{ secrets.DEPLOY_PATH || '/var/www/devops-actions' }}
+
+  ssh-deploy-docker:
+    name: SSH Deploy with Docker
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event.inputs.deploy-type == 'ssh'
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Execute SSH commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            echo "🚀 开始部署..."
+
+            # 登录 GHCR (需要用 Personal Access Token)
+            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin || true
+
+            # 拉取新镜像
+            docker pull ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+            # 停止旧容器
+            docker stop devops-actions 2>/dev/null || true
+            docker rm devops-actions 2>/dev/null || true
+
+            # 启动新容器
+            docker run -d \
+              --name devops-actions \
+              --restart=always \
+              -p 80:80 \
+              ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+            # 验证
+            sleep 3
+            docker ps --filter name=devops-actions
+
+            echo "✅ 部署完成！"
+
+  gray-release:
+    name: Gray Release
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event.inputs.deploy-type == 'gray' || github.event_name == 'push'
+    environment:
+      name: gray
+      url: https://example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gray Release (10%)
+        uses: ./.github/actions/gray-release
+        with:
+          percentage: 10
+          image-tag: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  full-release:
+    name: Full Release
+    runs-on: ubuntu-latest
+    needs: gray-release
+    environment:
+      name: production
+      url: https://example.com
+    steps:
+      - name: Full Release
+        uses: ./.github/actions/gray-release
+        with:
+          percentage: 100
+          image-tag: ghcr.io/${{ github.repository }}:${{ github.sha }}

@@ -1,0 +1,109 @@
+name: 'SSH Deploy'
+description: '通过 SSH 部署到服务器'
+author: 'devops-actions'
+
+inputs:
+  ssh-host:
+    description: 'SSH 服务器地址'
+    required: true
+  ssh-user:
+    description: 'SSH 用户名'
+    required: true
+  ssh-pass:
+    description: 'SSH 密码'
+    required: true
+  ssh-port:
+    description: 'SSH 端口'
+    required: false
+    default: '22'
+  deploy-path:
+    description: '部署路径'
+    required: true
+    default: '/var/www/devops-actions'
+  docker-image:
+    description: 'Docker 镜像'
+    required: false
+  post-deploy-script:
+    description: '部署后执行的脚本'
+    required: false
+
+outputs:
+  deploy-status:
+    description: '部署状态'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup SSH
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        ssh-keyscan -p ${{ inputs.ssh-port }} -H ${{ inputs.ssh-host }} >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+
+    - name: Install sshpass
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sshpass
+
+    - name: Create deploy script
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_PASS: ${{ inputs.ssh-pass }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+        DEPLOY_PATH: ${{ inputs.deploy-path }}
+        DOCKER_IMAGE: ${{ inputs.docker-image }}
+        POST_SCRIPT: ${{ inputs.post-deploy-script }}
+      run: |
+        cat > deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+
+        echo "🚀 开始部署..."
+        echo "部署路径: $DEPLOY_PATH"
+
+        # 创建部署目录
+        sshpass -p "$SSH_PASS" ssh -p $SSH_PORT -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST "mkdir -p $DEPLOY_PATH"
+
+        # 复制文件（使用 Docker 或直接复制）
+        if [ -n "$DOCKER_IMAGE" ]; then
+          echo "使用 Docker 镜像: $DOCKER_IMAGE"
+          sshpass -p "$SSH_PASS" ssh -p $SSH_PORT $SSH_USER@$SSH_HOST "
+            docker pull $DOCKER_IMAGE 2>/dev/null || true
+            docker stop devops-actions 2>/dev/null || true
+            docker rm devops-actions 2>/dev/null || true
+            docker run -d --name devops-actions --restart=always -p 80:80 $DOCKER_IMAGE
+          "
+        else
+          echo "复制应用文件..."
+          sshpass -p "$SSH_PASS" scp -P $SSH_PORT -r app/* $SSH_USER@$SSH_HOST:$DEPLOY_PATH/
+        fi
+
+        # 执行部署后脚本
+        if [ -n "$POST_SCRIPT" ]; then
+          echo "执行部署后脚本..."
+          sshpass -p "$SSH_PASS" ssh -p $SSH_PORT $SSH_USER@$SSH_HOST "$POST_SCRIPT"
+        fi
+
+        echo "✅ 部署完成！"
+        EOF
+
+        chmod +x deploy.sh
+
+    - name: Execute deploy
+      shell: bash
+      run: |
+        ./deploy.sh
+
+    - name: Cleanup
+      shell: bash
+      run: |
+        rm -f deploy.sh
+
+branding:
+  icon: 'upload-cloud'
+  color: 'green'

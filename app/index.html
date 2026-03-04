@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps 示例应用</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 DevOps Actions 演示</h1>
+            <p class="version">版本: <span id="version">v1.0.0</span></p>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>📊 系统状态</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-dot green"></span>
+                        <span>前端服务</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-dot green"></span>
+                        <span>API 网关</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-dot yellow"></span>
+                        <span>数据库</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>🔄 最近部署</h2>
+                <ul class="deploy-list" id="deployList">
+                    <li>
+                        <span class="deploy-time">2026-03-04 10:30</span>
+                        <span class="deploy-version">v1.0.0</span>
+                        <span class="deploy-status success">成功</span>
+                    </li>
+                </ul>
+            </section>
+
+            <section class="card">
+                <h2>🎛️ 发布控制</h2>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="simulateDeploy()">模拟部署</button>
+                    <button class="btn btn-secondary" onclick="toggleGray()">灰度切换</button>
+                </div>
+                <div class="gray-info" id="grayInfo" style="display: none;">
+                    <p>⚠️ 灰度模式已开启 - 50% 流量</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>GitHub Actions DevOps 演示项目 | 环境: <span id="env">production</span></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

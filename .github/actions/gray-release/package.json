@@ -1,0 +1,18 @@
+{
+  "name": "gray-release-action",
+  "version": "1.0.0",
+  "description": "GitHub Action for gray release",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist --license licenses.txt",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1",
+    "eslint": "^8.56.0"
+  }
+}
