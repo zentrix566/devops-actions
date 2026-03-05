@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "devops-actions",
+			"path": "."
+		},
+		{
+			"name": "my-nginx-web",
+			"path": "../my-nginx-web"
+		},
+		{
+			"name": "devops",
+			"path": "../devops"
+		}
+	],
+	"settings": {}
+}
